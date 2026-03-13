@@ -1,0 +1,34 @@
+# Build output
+dist
+*.tsbuildinfo
+
+# Dependencies
+node_modules
+
+# npm pack artifacts
+*.tgz
+
+# Local dev environment
+n8n-data
+custom-nodes
+Dockerfile.dev
+docker-compose.yml
+
+# IDE
+.vscode/
+
+# Test files
+test-output
+test-features.mjs
+
+# Sample data
+examples
+data
+
+# AI assistant config
+CLAUDE.md
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
