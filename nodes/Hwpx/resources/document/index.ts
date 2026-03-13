@@ -15,38 +15,38 @@ export const documentOperations: INodeProperties[] = [
 			{
 				name: 'Create',
 				value: 'create',
-				description: '새 HWPX 문서를 생성합니다',
+				description: '새 HWPX 문서 생성',
 				action: '문서 생성',
 			},
 			{
 				name: 'Read',
 				value: 'read',
-				description: 'HWPX 문서에서 텍스트/메타데이터를 읽고 추출합니다',
+				description: 'HWPX 문서에서 텍스트/메타데이터 읽기 및 추출',
 				action: '문서 읽기',
 			},
 			{
 				name: 'Validate',
 				value: 'validate',
-				description: 'HWPX 문서의 구조를 검증합니다',
+				description: 'HWPX 문서의 구조 검증',
 				action: '문서 검증',
 			},
 			{
 				name: 'To HTML',
 				value: 'toHtml',
-				description: 'HWPX 문서를 HTML로 변환합니다',
+				description: 'HWPX 문서를 HTML로 변환',
 				action: '문서를 HTML로 변환',
 			},
 			{
 				name: 'Convert HWP',
 				value: 'convertHwp',
-				description: 'HWP 파일을 HWPX 형식으로 변환합니다',
+				description: 'HWP 파일을 HWPX 형식으로 변환',
 				action: 'HWP를 HWPX로 변환',
 			},
 			{
 				name: 'Fill Template',
 				value: 'fillTemplate',
 				description:
-					'템플릿 HWPX에 일괄 및 순차 텍스트 치환을 적용합니다',
+					'템플릿 HWPX에 일괄 및 순차 텍스트 치환 적용',
 				action: '템플릿 문서 채우기',
 			},
 		],
@@ -86,8 +86,7 @@ export const documentFields: INodeProperties[] = [
 				operation: ['create'],
 			},
 		},
-		description:
-			'문서 본문 내용. 입력 형식 옵션에 따라 해석됩니다: 일반 텍스트(기본값), Markdown (**bold**, *italic*, # heading), 또는 Structured JSON.',
+		description: '문서 본문 내용. 입력 형식 옵션에 따라 해석: 일반 텍스트(기본값), Markdown (**bold**, *italic*, # heading), 또는 Structured JSON.',
 	},
 	{
 		displayName: '바이너리 속성',
@@ -358,7 +357,7 @@ export const documentFields: INodeProperties[] = [
 				operation: ['fillTemplate'],
 			},
 		},
-		description: '각 검색 텍스트의 모든 항목을 치환 값으로 대체합니다',
+		description: '각 검색 텍스트의 모든 항목을 치환 값으로 대체',
 		options: [
 			{
 				name: 'pairs',
@@ -369,7 +368,7 @@ export const documentFields: INodeProperties[] = [
 						name: 'find',
 						type: 'string',
 						default: '',
-						description: '검색할 텍스트 (모든 항목이 치환됩니다)',
+						description: '검색할 텍스트 (모든 항목이 치환됨)',
 					},
 					{
 						displayName: '바꿀 내용',
@@ -397,7 +396,7 @@ export const documentFields: INodeProperties[] = [
 			},
 		},
 		description:
-			'플레이스홀더의 각 항목을 순차적인 값으로 대체합니다 (1번째 항목은 1번째 값, 2번째 항목은 2번째 값 등)',
+			'플레이스홀더의 각 항목을 순차적인 값으로 대체 (1번째 항목은 1번째 값, 2번째 항목은 2번째 값 등)',
 		options: [
 			{
 				name: 'groups',
@@ -418,8 +417,7 @@ export const documentFields: INodeProperties[] = [
 							rows: 5,
 						},
 						default: '',
-						description:
-							'한 줄에 하나의 값. 1번째 항목은 1번째 줄로, 2번째 항목은 2번째 줄로 대체됩니다.',
+						description: '한 줄에 하나의 값. 1번째 항목은 1번째 줄로, 2번째 항목은 2번째 줄로 대체.',
 					},
 				],
 			},
