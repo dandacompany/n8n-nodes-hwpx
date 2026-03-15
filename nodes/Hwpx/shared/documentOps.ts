@@ -1,7 +1,7 @@
 import type { IExecuteFunctions, INodeExecutionData, IDataObject } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 import JSZip from 'jszip';
-import { HwpxReader, HwpConverter  } from '@ssabrojs/hwpxjs';
+import { HwpxReader } from '@ssabrojs/hwpxjs';
 import {
 	parseMarkdown,
 	parseStructuredJson,
@@ -44,6 +44,95 @@ function buildSectionXml(text: string): string {
 		`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
 		`<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"` +
 		` xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">` +
+		paragraphs +
+		`</hs:sec>`
+	);
+}
+
+/**
+ * Build section XML with embedded image references.
+ * Images are inserted as <hp:pic> elements in the paragraphs where they appeared in the HWP.
+ */
+function buildSectionXmlWithImages(
+	texts: string[],
+	imagePlacements: HwpImagePlacement[],
+	imageFiles: Array<{ name: string; data: Buffer; mimeType: string }>,
+): string {
+	// Build a map: paragraph index → image placements
+	const paraImages = new Map<number, HwpImagePlacement[]>();
+	for (const img of imagePlacements) {
+		const list = paraImages.get(img.paragraphIndex) ?? [];
+		list.push(img);
+		paraImages.set(img.paragraphIndex, list);
+	}
+
+	const paragraphs = texts
+		.map((rawLine, idx) => {
+			const line = rawLine
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;');
+
+			let paraXml =
+				`<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">` +
+				`<hp:run charPrIDRef="0"><hp:rPr/><hp:t>${line}</hp:t></hp:run>`;
+
+			// Append image(s) for this paragraph
+			const imgs = paraImages.get(idx);
+			if (imgs) {
+				for (const img of imgs) {
+					if (img.binIndex < 0 || img.binIndex >= imageFiles.length) continue;
+					const binFile = imageFiles[img.binIndex];
+					const binId = binFile.name.replace(/\.[^.]+$/, '');
+					const w = img.width || 28346; // default ~100mm
+					const h = img.height || 21260; // default ~75mm
+					const picId = Date.now() + img.binIndex;
+
+					paraXml +=
+						`<hp:run charPrIDRef="0">` +
+						`<hp:pic id="${picId}" zOrder="0" numberingType="PICTURE" ` +
+						`textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" ` +
+						`dropcapstyle="None" href="" groupLevel="0" instid="${picId + 1}" reverse="0">` +
+						`<hp:offset x="0" y="0"/>` +
+						`<hp:orgSz width="${w}" height="${h}"/>` +
+						`<hp:curSz width="0" height="0"/>` +
+						`<hp:flip horizontal="0" vertical="0"/>` +
+						`<hp:rotationInfo angle="0" centerX="${Math.round(w / 2)}" ` +
+						`centerY="${Math.round(h / 2)}" rotateimage="1"/>` +
+						`<hp:renderingInfo>` +
+						`<hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>` +
+						`<hc:scaMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>` +
+						`<hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>` +
+						`</hp:renderingInfo>` +
+						`<hc:img binaryItemIDRef="${binId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>` +
+						`<hp:imgRect>` +
+						`<hc:pt0 x="0" y="0"/><hc:pt1 x="${w}" y="0"/>` +
+						`<hc:pt2 x="${w}" y="${h}"/><hc:pt3 x="0" y="${h}"/>` +
+						`</hp:imgRect>` +
+						`<hp:imgClip left="0" right="0" top="0" bottom="0"/>` +
+						`<hp:inMargin left="0" right="0" top="0" bottom="0"/>` +
+						`<hp:imgDim dimwidth="${w}" dimheight="${h}"/>` +
+						`<hp:effects/>` +
+						`<hp:sz width="${w}" widthRelTo="ABSOLUTE" height="${h}" heightRelTo="ABSOLUTE" protect="0"/>` +
+						`<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" ` +
+						`holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="CENTER" ` +
+						`vertOffset="0" horzOffset="0"/>` +
+						`<hp:outMargin left="0" right="0" top="0" bottom="0"/>` +
+						`</hp:pic></hp:run>`;
+				}
+			}
+
+			paraXml += `</hp:p>`;
+			return paraXml;
+		})
+		.join('');
+
+	return (
+		`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+		`<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"` +
+		` xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"` +
+		` xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core">` +
 		paragraphs +
 		`</hs:sec>`
 	);
@@ -437,8 +526,215 @@ export async function toHtml(
 	};
 }
 
+/** Image placement info extracted from HWP GSO records */
+interface HwpImagePlacement {
+	/** 0-based paragraph index where the image appears */
+	paragraphIndex: number;
+	/** 0-based BIN data index (0 → BIN0001, 1 → BIN0002, ...) */
+	binIndex: number;
+	/** Display width in HWPUNIT */
+	width: number;
+	/** Display height in HWPUNIT */
+	height: number;
+}
+
 /**
- * Convert HWP binary to HWPX using HWPReader (pure TypeScript).
+ * Parse HWP 5.x section records from decompressed body data.
+ * Returns text paragraphs and image placement info.
+ */
+function parseHwpSection(data: Buffer): {
+	texts: string[];
+	images: HwpImagePlacement[];
+} {
+	const texts: string[] = [];
+	const images: HwpImagePlacement[] = [];
+
+	// First pass: collect all records with positions
+	const records: Array<{
+		tid: number;
+		level: number;
+		sz: number;
+		off: number;
+	}> = [];
+	let off = 0;
+	while (off + 4 <= data.length) {
+		const raw = data.readUInt32LE(off);
+		const tid = raw & 0x3ff;
+		const level = (raw >> 10) & 0x3ff;
+		let sz = (raw >> 20) & 0xfff;
+		off += 4;
+		if (sz === 0xfff) {
+			if (off + 4 > data.length) break;
+			sz = data.readUInt32LE(off);
+			off += 4;
+		}
+		if (off + sz > data.length) break;
+		records.push({ tid, level, sz, off });
+		off += sz;
+	}
+
+	// Track paragraph index
+	let paraIdx = -1;
+	const paraHasGso: Set<number> = new Set();
+
+	// Extract text and detect GSO inline controls
+	for (const rec of records) {
+		if (rec.tid === 67 && rec.sz > 0) {
+			// HWPTAG_PARA_TEXT
+			paraIdx++;
+			const tb = data.subarray(rec.off, rec.off + rec.sz);
+			let text = '';
+			let i = 0;
+			while (i + 1 < tb.length) {
+				const ch = tb.readUInt16LE(i);
+				i += 2;
+				if (ch === 0 || ch === 13 || ch === 30) continue;
+				if (ch >= 0x20) {
+					text += String.fromCharCode(ch);
+				} else if (ch === 11) {
+					// GSO (shape object) inline control
+					paraHasGso.add(paraIdx);
+					i += 12;
+				} else if (ch >= 1 && ch <= 8) {
+					i += 12;
+				} else if (ch === 10) {
+					text += '\n';
+				}
+			}
+			texts.push(text.trim());
+		}
+	}
+
+	// Find GSO CTRL_HEADER records (" osg") and extract image info
+	let currentParaForCtrl = -1;
+	for (let ri = 0; ri < records.length; ri++) {
+		const rec = records[ri];
+		// Track which paragraph we're in (count PARA_TEXT records before this)
+		if (rec.tid === 67) {
+			currentParaForCtrl++;
+		}
+		if (rec.tid !== 71) continue; // CTRL_HEADER only
+		if (rec.sz < 28) continue;
+
+		const ctrlId = data.toString('ascii', rec.off, rec.off + 4);
+		if (ctrlId !== ' osg') continue;
+
+		// GSO ctrl header: offset+24 = BIN index (0-based)
+		const binIndex = data.readUInt32LE(rec.off + 24);
+
+		// Find child SHAPE_COMPONENT for dimensions
+		let width = 0;
+		let height = 0;
+		let isPicture = false;
+		for (let j = ri + 1; j < records.length; j++) {
+			if (records[j].level <= rec.level) break;
+			if (records[j].tid === 76 && records[j].sz >= 28) {
+				// SHAPE_COMPONENT: check if it's "cip$" (picture type)
+				const compId = data.toString('ascii', records[j].off, records[j].off + 4);
+				if (compId === 'cip$') {
+					isPicture = true;
+					width = data.readInt32LE(records[j].off + 20);
+					height = data.readInt32LE(records[j].off + 24);
+				}
+				break;
+			}
+		}
+
+		if (isPicture) {
+			images.push({
+				paragraphIndex: currentParaForCtrl,
+				binIndex,
+				width,
+				height,
+			});
+		}
+	}
+
+	return { texts, images };
+}
+
+/**
+ * Extract text paragraphs and image placements from HWP 5.x binary.
+ */
+function extractHwpContent(buffer: Buffer): {
+	texts: string[];
+	images: HwpImagePlacement[];
+} {
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const CFB = require('cfb');
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const zlib = require('zlib');
+
+	const cfb = CFB.read(buffer, { type: 'buffer' });
+	const allTexts: string[] = [];
+	const allImages: HwpImagePlacement[] = [];
+
+	let sectionIdx = 0;
+	while (true) {
+		const section = CFB.find(cfb, `Root Entry/BodyText/Section${sectionIdx}`);
+		if (!section?.content) break;
+
+		let data = Buffer.from(section.content);
+		try {
+			data = zlib.inflateRawSync(data);
+		} catch {
+			// May not be compressed
+		}
+
+		const { texts, images } = parseHwpSection(data);
+		const baseParaIdx = allTexts.length;
+		allTexts.push(...texts);
+		for (const img of images) {
+			allImages.push({ ...img, paragraphIndex: img.paragraphIndex + baseParaIdx });
+		}
+		sectionIdx++;
+	}
+
+	return { texts: allTexts, images: allImages };
+}
+
+/**
+ * Extract images from HWP 5.x binary (BinData entries).
+ * Returns array of { name, data, mimeType }.
+ */
+function extractHwpImages(
+	buffer: Buffer,
+): Array<{ name: string; data: Buffer; mimeType: string }> {
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const CFB = require('cfb');
+	const cfb = CFB.read(buffer, { type: 'buffer' });
+	const images: Array<{ name: string; data: Buffer; mimeType: string }> = [];
+
+	for (const fullPath of cfb.FullPaths) {
+		if (!fullPath.includes('BinData/')) continue;
+		const entry = CFB.find(cfb, fullPath);
+		if (!entry?.content || entry.content.length === 0) continue;
+
+		const name = fullPath.split('/').pop() ?? '';
+		const ext = name.split('.').pop()?.toLowerCase() ?? '';
+		const mimeMap: Record<string, string> = {
+			jpg: 'image/jpeg',
+			jpeg: 'image/jpeg',
+			png: 'image/png',
+			gif: 'image/gif',
+			bmp: 'image/bmp',
+			svg: 'image/svg+xml',
+		};
+		images.push({
+			name,
+			data: Buffer.from(entry.content),
+			mimeType: mimeMap[ext] ?? 'application/octet-stream',
+		});
+	}
+
+	return images;
+}
+
+/**
+ * Convert HWP 5.x binary to HWPX using direct CFB/OLE2 parsing.
+ *
+ * Extracts text and images from the HWP compound document, then builds
+ * a valid HWPX by injecting content into the BLANK_HWPX template.
  */
 export async function convertHwp(
 	this: IExecuteFunctions,
@@ -466,42 +762,69 @@ export async function convertHwp(
 	}
 
 	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
-	// Write to temp file, convert, read back (HwpConverter is file-path based)
-	const os = await import('os');
-	const fs = await import('fs/promises');
-	const path = await import('path');
-	const tmpDir = os.tmpdir();
-	const inputPath = path.join(tmpDir, `hwp-input-${Date.now()}.hwp`);
-	const outputPath = path.join(tmpDir, `hwpx-output-${Date.now()}.hwpx`);
 
-	try {
-		await fs.writeFile(inputPath, buffer);
-		const converter = new HwpConverter();
-		const result = await converter.convertHwpToHwpx(inputPath, outputPath);
+	// Extract text, image placements, and image files from HWP
+	const { texts, images: imagePlacements } = extractHwpContent(buffer);
+	const imageFiles = extractHwpImages(buffer);
 
-		if (!result.success) {
-			throw new Error(result.error ?? 'HWP to HWPX conversion failed');
-		}
-
-		const outputBuffer = await fs.readFile(outputPath);
-		const newBinaryData = await this.helpers.prepareBinaryData(
-			outputBuffer,
-			fileName,
-			'application/hwp+zip',
-		);
-
-		return {
-			json: {
-				fileName,
-				size: outputBuffer.length,
-				convertedFrom: binaryData.fileName ?? 'unknown.hwp',
-			},
-			binary: { [outputBinaryPropertyName]: newBinaryData },
-			pairedItem: { item: itemIndex },
-		};
-	} finally {
-		const fs2 = await import('fs/promises');
-		await fs2.unlink(inputPath).catch(() => {});
-		await fs2.unlink(outputPath).catch(() => {});
+	if (texts.length === 0) {
+		throw new NodeOperationError(this.getNode(), 'No text content found in HWP file', {
+			itemIndex,
+		});
 	}
+
+	// Build proper HWPX from validated template
+	const templateBuffer = Buffer.from(BLANK_HWPX_BASE64, 'base64');
+	const zip = await JSZip.loadAsync(templateBuffer);
+
+	// Build section XML with image placements
+	zip.file(
+		'Contents/section0.xml',
+		buildSectionXmlWithImages(texts, imagePlacements, imageFiles),
+	);
+
+	// Inject images into BinData/ and register in content.hpf
+	if (imageFiles.length > 0) {
+		const hpfFile = zip.file('Contents/content.hpf');
+		let hpf = hpfFile ? await hpfFile.async('string') : '';
+
+		for (const img of imageFiles) {
+			zip.file(`BinData/${img.name}`, img.data);
+			const itemTag = `<opf:item id="${img.name.replace(/\.[^.]+$/, '')}" href="BinData/${img.name}" media-type="${img.mimeType}"/>`;
+			if (hpf.includes('</opf:manifest>') && !hpf.includes(img.name)) {
+				hpf = hpf.replace('</opf:manifest>', `${itemTag}</opf:manifest>`);
+			}
+		}
+		zip.file('Contents/content.hpf', hpf);
+	}
+
+	// Preserve mimetype as STORED
+	const mimetypeContent = await zip.file('mimetype')?.async('string');
+	if (mimetypeContent) {
+		zip.file('mimetype', mimetypeContent, { compression: 'STORE' });
+	}
+
+	const outputBuffer = (await zip.generateAsync({
+		type: 'nodebuffer',
+		compression: 'DEFLATE',
+	})) as Buffer;
+
+	const newBinaryData = await this.helpers.prepareBinaryData(
+		outputBuffer,
+		fileName,
+		'application/hwp+zip',
+	);
+
+	return {
+		json: {
+			fileName,
+			size: outputBuffer.length,
+			convertedFrom: binaryData.fileName ?? 'unknown.hwp',
+			extractedParagraphs: texts.length,
+			extractedImages: imageFiles.length,
+			imagePlacements: imagePlacements.length,
+		},
+		binary: { [outputBinaryPropertyName]: newBinaryData },
+		pairedItem: { item: itemIndex },
+	};
 }
