@@ -49,6 +49,12 @@ export const contentOperations: INodeProperties[] = [
 				action: '이미지 삽입',
 			},
 			{
+				name: '이미지 교체',
+				value: 'replaceImage',
+				description: 'HWPX 문서의 기존 이미지를 새 이미지로 교체',
+				action: '이미지 교체',
+			},
+			{
 				name: '표 추가',
 				value: 'addTable',
 				description: 'JSON 데이터로 HWPX 문서에 표 추가',
@@ -694,6 +700,93 @@ export const contentFields: INodeProperties[] = [
 				type: 'number',
 				default: 75,
 				description: '이미지 표시 높이 (밀리미터)',
+			},
+		],
+	},
+
+	// ----------------------------------
+	//         content:replaceImage
+	// ----------------------------------
+	{
+		displayName: '입력 바이너리 속성',
+		name: 'inputBinaryPropertyName',
+		type: 'string',
+		default: 'data',
+		required: true,
+		displayOptions: {
+			show: {
+				resource: ['content'],
+				operation: ['replaceImage'],
+			},
+		},
+		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
+	},
+	{
+		displayName: '이미지 바이너리 속성',
+		name: 'imageBinaryPropertyName',
+		type: 'string',
+		default: 'image',
+		required: true,
+		displayOptions: {
+			show: {
+				resource: ['content'],
+				operation: ['replaceImage'],
+			},
+		},
+		description: '교체할 새 이미지 파일(PNG, JPG, GIF, BMP)이 포함된 바이너리 속성의 이름',
+	},
+	{
+		displayName: '대상 이미지',
+		name: 'targetImage',
+		type: 'string',
+		default: '',
+		displayOptions: {
+			show: {
+				resource: ['content'],
+				operation: ['replaceImage'],
+			},
+		},
+		description: '교체할 이미지 식별자 (파일명, ID, 또는 순번). 비워두면 첫 번째 이미지를 교체합니다.',
+	},
+	{
+		displayName: '출력 바이너리 속성',
+		name: 'outputBinaryPropertyName',
+		type: 'string',
+		default: 'data',
+		displayOptions: {
+			show: {
+				resource: ['content'],
+				operation: ['replaceImage'],
+			},
+		},
+		description: '수정된 HWPX 파일을 저장할 바이너리 속성의 이름',
+	},
+	{
+		displayName: '옵션',
+		name: 'options',
+		type: 'collection',
+		placeholder: '옵션 추가',
+		default: {},
+		displayOptions: {
+			show: {
+				resource: ['content'],
+				operation: ['replaceImage'],
+			},
+		},
+		options: [
+			{
+				displayName: '너비 (Mm)',
+				name: 'widthMm',
+				type: 'number',
+				default: 0,
+				description: '새 이미지 표시 너비 (밀리미터, 0이면 기존 크기 유지)',
+			},
+			{
+				displayName: '높이 (Mm)',
+				name: 'heightMm',
+				type: 'number',
+				default: 0,
+				description: '새 이미지 표시 높이 (밀리미터, 0이면 기존 크기 유지)',
 			},
 		],
 	},

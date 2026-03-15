@@ -382,12 +382,35 @@ export async function listTexts(
 }
 
 /**
- * Helper: ensure OCF mimetype is STORED and generate output buffer.
+ * Files that must be stored uncompressed (STORED) in HWPX ZIP archives.
+ * Changing these to DEFLATED causes "document corrupted" errors in Hangul viewer.
+ */
+function shouldStore(filename: string): boolean {
+	if (filename === 'mimetype') return true;
+	if (filename === 'version.xml') return true;
+	if (filename.startsWith('BinData/')) return true;
+	if (filename === 'Preview/PrvImage.png') return true;
+	return false;
+}
+
+/**
+ * Helper: preserve per-file compression types and generate output buffer.
+ *
+ * HWPX ZIP archives require specific files to use STORED (no compression):
+ * - mimetype, version.xml (OCF/ODF spec)
+ * - BinData/* (images/binaries)
+ * - Preview/PrvImage.png (preview image)
+ *
+ * All other files (Contents/*.xml, settings.xml, META-INF/*, Scripts/*) use DEFLATED.
  */
 async function finalizeZip(zip: JSZip): Promise<Buffer> {
-	const mimetypeContent = await zip.file('mimetype')?.async('string');
-	if (mimetypeContent) {
-		zip.file('mimetype', mimetypeContent, { compression: 'STORE' });
+	// Re-set compression for files that must be STORED
+	for (const [filename, file] of Object.entries(zip.files)) {
+		if (file.dir) continue;
+		if (shouldStore(filename)) {
+			const content = await file.async('nodebuffer');
+			zip.file(filename, content, { compression: 'STORE' });
+		}
 	}
 	return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }) as Promise<Buffer>;
 }
@@ -645,21 +668,39 @@ export async function insertImage(
 	// Step 3: Build image paragraph XML and insert into section
 	const imgWidth = Math.round((options.widthMm ?? 100) * MM_TO_HWPUNIT);
 	const imgHeight = Math.round((options.heightMm ?? 75) * MM_TO_HWPUNIT);
+	const picId = Date.now();
 
 	const pictureParagraph =
 		`<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">` +
 		`<hp:run charPrIDRef="0">` +
-		`<hp:pic id="${Date.now()}" zOrder="0" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" ` +
-		`textFlow="BOTH_SIDES" lock="0" dropcapstyle="None">` +
+		`<hp:pic id="${picId}" zOrder="0" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" ` +
+		`textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" ` +
+		`instid="${picId + 1}" reverse="0">` +
+		`<hp:offset x="0" y="0"/>` +
+		`<hp:orgSz width="${imgWidth}" height="${imgHeight}"/>` +
+		`<hp:curSz width="0" height="0"/>` +
+		`<hp:flip horizontal="0" vertical="0"/>` +
+		`<hp:rotationInfo angle="0" centerX="${Math.round(imgWidth / 2)}" ` +
+		`centerY="${Math.round(imgHeight / 2)}" rotateimage="1"/>` +
+		`<hp:renderingInfo>` +
+		`<hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>` +
+		`<hc:scaMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>` +
+		`<hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>` +
+		`</hp:renderingInfo>` +
+		`<hc:img binaryItemIDRef="${binId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>` +
+		`<hp:imgRect>` +
+		`<hc:pt0 x="0" y="0"/><hc:pt1 x="${imgWidth}" y="0"/>` +
+		`<hc:pt2 x="${imgWidth}" y="${imgHeight}"/><hc:pt3 x="0" y="${imgHeight}"/>` +
+		`</hp:imgRect>` +
+		`<hp:imgClip left="0" right="0" top="0" bottom="0"/>` +
+		`<hp:inMargin left="0" right="0" top="0" bottom="0"/>` +
+		`<hp:imgDim dimwidth="${imgWidth}" dimheight="${imgHeight}"/>` +
+		`<hp:effects/>` +
 		`<hp:sz width="${imgWidth}" widthRelTo="ABSOLUTE" height="${imgHeight}" heightRelTo="ABSOLUTE" protect="0"/>` +
 		`<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" ` +
 		`holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" ` +
 		`vertOffset="0" horzOffset="0"/>` +
 		`<hp:outMargin left="0" right="0" top="0" bottom="0"/>` +
-		`<hp:imgRect x="0" y="0" cx="${imgWidth}" cy="${imgHeight}"/>` +
-		`<hp:imgClip left="0" right="0" top="0" bottom="0"/>` +
-		`<hp:img binaryItemIDRef="${binId}" bright="0" contrast="0" effect="REAL_PIC" ` +
-		`alpha="0"/>` +
 		`</hp:pic>` +
 		`</hp:run>` +
 		`</hp:p>`;
@@ -713,6 +754,219 @@ export async function insertImage(
 			widthMm: options.widthMm ?? 100,
 			heightMm: options.heightMm ?? 75,
 			position,
+			fileName: originalFileName,
+		},
+		binary: { [outputBinaryPropertyName]: newBinaryData },
+		pairedItem: { item: itemIndex },
+	};
+}
+
+/**
+ * Replace an existing image in an HWPX document.
+ *
+ * Three-step process:
+ * 1. Find existing image by ID or index in BinData/
+ * 2. Replace the binary file with the new image
+ * 3. Update dimensions in section XML if size changed
+ */
+export async function replaceImage(
+	this: IExecuteFunctions,
+	itemIndex: number,
+	item: INodeExecutionData,
+): Promise<INodeExecutionData> {
+	const inputBinaryPropertyName = this.getNodeParameter(
+		'inputBinaryPropertyName',
+		itemIndex,
+	) as string;
+	const imageBinaryPropertyName = this.getNodeParameter(
+		'imageBinaryPropertyName',
+		itemIndex,
+	) as string;
+	const outputBinaryPropertyName = this.getNodeParameter(
+		'outputBinaryPropertyName',
+		itemIndex,
+		'data',
+	) as string;
+	const targetImage = this.getNodeParameter('targetImage', itemIndex, '') as string;
+	const options = this.getNodeParameter('options', itemIndex, {}) as {
+		widthMm?: number;
+		heightMm?: number;
+	};
+
+	const binaryData = item.binary?.[inputBinaryPropertyName];
+	if (!binaryData) {
+		throw new NodeOperationError(
+			this.getNode(),
+			`No binary data found in property "${inputBinaryPropertyName}"`,
+			{ itemIndex },
+		);
+	}
+
+	const imageBinary = item.binary?.[imageBinaryPropertyName];
+	if (!imageBinary) {
+		throw new NodeOperationError(
+			this.getNode(),
+			`No image binary data found in property "${imageBinaryPropertyName}"`,
+			{ itemIndex },
+		);
+	}
+
+	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const imageBuffer = await this.helpers.getBinaryDataBuffer(itemIndex, imageBinaryPropertyName);
+	const zip = await JSZip.loadAsync(buffer);
+
+	// Find existing image files in BinData/
+	const binFiles = Object.keys(zip.files)
+		.filter((f) => f.startsWith('BinData/') && !zip.files[f].dir)
+		.sort();
+
+	if (binFiles.length === 0) {
+		throw new NodeOperationError(
+			this.getNode(),
+			'No images found in document BinData/ directory',
+			{ itemIndex },
+		);
+	}
+
+	// Determine target: by filename, by ID, or by index (default: first image)
+	let targetPath: string;
+	if (targetImage) {
+		// Try exact match first
+		const exact = binFiles.find((f) => f === targetImage || f === `BinData/${targetImage}`);
+		if (exact) {
+			targetPath = exact;
+		} else {
+			// Try matching by ID (e.g., "image1", "BIN0001")
+			const byId = binFiles.find((f) => f.includes(targetImage));
+			if (byId) {
+				targetPath = byId;
+			} else {
+				// Try by index (1-based)
+				const idx = parseInt(targetImage, 10);
+				if (!isNaN(idx) && idx >= 1 && idx <= binFiles.length) {
+					targetPath = binFiles[idx - 1];
+				} else {
+					throw new NodeOperationError(
+						this.getNode(),
+						`Image "${targetImage}" not found. Available: ${binFiles.join(', ')}`,
+						{ itemIndex },
+					);
+				}
+			}
+		}
+	} else {
+		// Default: replace the first image
+		targetPath = binFiles[0];
+	}
+
+	// Determine new image format
+	const mimeType = imageBinary.mimeType ?? 'image/png';
+	const newExt = mimeType.includes('jpeg') || mimeType.includes('jpg')
+		? 'jpg'
+		: mimeType.includes('gif')
+			? 'gif'
+			: mimeType.includes('bmp')
+				? 'bmp'
+				: 'png';
+
+	// Extract the bin ID from the target path (e.g., "BinData/image1.png" -> "image1")
+	const oldBinId = targetPath.replace('BinData/', '').replace(/\.[^.]+$/, '');
+	const oldExt = targetPath.split('.').pop() ?? 'png';
+
+	// If extension changed, we need to update paths
+	const newBinPath = newExt !== oldExt
+		? `BinData/${oldBinId}.${newExt}`
+		: targetPath;
+
+	// Step 1: Replace image binary
+	zip.remove(targetPath);
+	zip.file(newBinPath, imageBuffer, { compression: 'STORE' });
+
+	// Step 2: Update content.hpf manifest if extension changed
+	if (newExt !== oldExt) {
+		const hpfFile = zip.file('Contents/content.hpf');
+		if (hpfFile) {
+			let hpf = await hpfFile.async('string');
+			const newMediaType = newExt === 'jpg' ? 'image/jpeg' : `image/${newExt}`;
+			// Update href and media-type for this image
+			hpf = hpf.replace(
+				new RegExp(`href="${targetPath.replace('/', '\\/')}"[^/]*\\/>`),
+				`href="${newBinPath}" media-type="${newMediaType}"/>`,
+			);
+			zip.file('Contents/content.hpf', hpf);
+		}
+	}
+
+	// Step 3: Update image dimensions in section XML if new size specified
+	if (options.widthMm || options.heightMm) {
+		const newWidth = Math.round((options.widthMm ?? 100) * MM_TO_HWPUNIT);
+		const newHeight = Math.round((options.heightMm ?? 75) * MM_TO_HWPUNIT);
+
+		for (const filename of Object.keys(zip.files).sort()) {
+			if (!filename.startsWith('Contents/section') || !filename.endsWith('.xml')) continue;
+
+			let content = await zip.files[filename].async('string');
+			if (!content.includes(`binaryItemIDRef="${oldBinId}"`)) continue;
+
+			// Find the <hp:pic> block containing this image and update dimensions
+			const picRegex = new RegExp(
+				`(<hp:pic[^>]*>)(.*?)(binaryItemIDRef="${oldBinId}")(.*?)(</hp:pic>)`,
+				's',
+			);
+			const picMatch = content.match(picRegex);
+			if (picMatch) {
+				let picBlock = picMatch[0];
+				// Update orgSz
+				picBlock = picBlock.replace(
+					/<hp:orgSz width="\d+" height="\d+"\/>/,
+					`<hp:orgSz width="${newWidth}" height="${newHeight}"/>`,
+				);
+				// Update imgDim
+				picBlock = picBlock.replace(
+					/<hp:imgDim dimwidth="\d+" dimheight="\d+"\/>/,
+					`<hp:imgDim dimwidth="${newWidth}" dimheight="${newHeight}"/>`,
+				);
+				// Update sz
+				picBlock = picBlock.replace(
+					/<hp:sz width="\d+" (widthRelTo="ABSOLUTE") height="\d+"/,
+					`<hp:sz width="${newWidth}" $1 height="${newHeight}"`,
+				);
+				// Update imgRect points
+				picBlock = picBlock.replace(
+					/<hc:pt1 x="\d+" y="0"\/>/,
+					`<hc:pt1 x="${newWidth}" y="0"/>`,
+				);
+				picBlock = picBlock.replace(
+					/<hc:pt2 x="\d+" y="\d+"\/>/,
+					`<hc:pt2 x="${newWidth}" y="${newHeight}"/>`,
+				);
+				picBlock = picBlock.replace(
+					/<hc:pt3 x="0" y="\d+"\/>/,
+					`<hc:pt3 x="0" y="${newHeight}"/>`,
+				);
+				content = content.replace(picMatch[0], picBlock);
+			}
+
+			zip.file(filename, content);
+		}
+	}
+
+	const outputBuffer = await finalizeZip(zip);
+	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const newBinaryData = await this.helpers.prepareBinaryData(
+		outputBuffer,
+		originalFileName,
+		'application/hwp+zip',
+	);
+
+	return {
+		json: {
+			replacedImage: targetPath,
+			newPath: newBinPath,
+			imageFormat: newExt,
+			widthMm: options.widthMm,
+			heightMm: options.heightMm,
+			availableImages: binFiles,
 			fileName: originalFileName,
 		},
 		binary: { [outputBinaryPropertyName]: newBinaryData },

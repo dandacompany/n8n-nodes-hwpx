@@ -23,6 +23,7 @@ import {
 	listTexts,
 	pageSetup,
 	insertImage,
+	replaceImage,
 	addTable,
 	setHeaderFooter,
 	mergeCells,
@@ -119,6 +120,8 @@ export class Hwpx implements INodeType {
 						returnData.push(await pageSetup.call(this, i, items[i]));
 					} else if (operation === 'insertImage') {
 						returnData.push(await insertImage.call(this, i, items[i]));
+					} else if (operation === 'replaceImage') {
+						returnData.push(await replaceImage.call(this, i, items[i]));
 					} else if (operation === 'addTable') {
 						returnData.push(await addTable.call(this, i, items[i]));
 					} else if (operation === 'setHeaderFooter') {

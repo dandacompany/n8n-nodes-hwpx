@@ -137,7 +137,7 @@ npm install n8n-nodes-hwpx
 - **Homepage**: [dante-labs.com](https://dante-labs.com)
 - **YouTube**: [@dante-labs](https://youtube.com/@dante-labs)
 - **Discord**: [Dante Labs Community](https://discord.com/invite/rXyy5e9ujs)
-- **Email**: datapod.k@gmail.com
+- **Email**: dante@dante-labs.com
 
 ### Support
 
