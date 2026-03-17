@@ -2,6 +2,7 @@ import type { IExecuteFunctions, INodeExecutionData, IDataObject } from 'n8n-wor
 import { NodeOperationError } from 'n8n-workflow';
 import JSZip from 'jszip';
 import { HwpxReader } from '@ssabrojs/hwpxjs';
+import { resolveInputBuffer, getOriginalFileName, getImageMimeType } from './inputHelper';
 
 // HWPUNIT: 1mm ≈ 283.46 HWPUNIT
 const MM_TO_HWPUNIT = 283.46;
@@ -27,10 +28,6 @@ export async function replaceText(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -43,15 +40,6 @@ export async function replaceText(
 		targetFiles?: string;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
 	const pairs = replacementsParam.pairs ?? [];
 	if (pairs.length === 0) {
 		throw new NodeOperationError(
@@ -61,7 +49,7 @@ export async function replaceText(
 		);
 	}
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 	const targetFiles = options.targetFiles ?? 'contentsXml';
 
@@ -105,7 +93,7 @@ export async function replaceText(
 		compression: 'DEFLATE',
 	});
 
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -131,25 +119,12 @@ export async function extractStructure(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const options = this.getNodeParameter('options', itemIndex, {}) as {
 		includeEmpty?: boolean;
 		sectionFilter?: string;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const reader = new HwpxReader();
 	await reader.loadFromArrayBuffer(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer);
 
@@ -187,10 +162,6 @@ export async function replaceTextSequential(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -201,15 +172,6 @@ export async function replaceTextSequential(
 	const options = this.getNodeParameter('options', itemIndex, {}) as {
 		targetFiles?: string;
 	};
-
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	if (!findText) {
 		throw new NodeOperationError(this.getNode(), 'Find Text is required', { itemIndex });
@@ -227,7 +189,7 @@ export async function replaceTextSequential(
 		);
 	}
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 	const targetFiles = options.targetFiles ?? 'contentsXml';
 
@@ -275,7 +237,7 @@ export async function replaceTextSequential(
 		compression: 'DEFLATE',
 	});
 
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -303,26 +265,13 @@ export async function listTexts(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const options = this.getNodeParameter('options', itemIndex, {}) as {
 		includeEmpty?: boolean;
 		sectionFilter?: string;
 		deduplicate?: boolean;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	const texts: Array<{ text: string; file: string; index: number }> = [];
@@ -437,10 +386,6 @@ export async function pageSetup(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -459,16 +404,7 @@ export async function pageSetup(
 		customHeight?: number;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	// Determine paper dimensions
@@ -548,7 +484,7 @@ export async function pageSetup(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -582,14 +518,6 @@ export async function insertImage(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
-	const imageBinaryPropertyName = this.getNodeParameter(
-		'imageBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -601,30 +529,12 @@ export async function insertImage(
 		heightMm?: number;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const imageBinary = item.binary?.[imageBinaryPropertyName];
-	if (!imageBinary) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No image binary data found in property "${imageBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
-	const imageBuffer = await this.helpers.getBinaryDataBuffer(itemIndex, imageBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const imageBuffer = await resolveInputBuffer(this, itemIndex, item, 'imageInputSource', 'imageBinaryPropertyName', 'imageUrl');
 	const zip = await JSZip.loadAsync(buffer);
 
 	// Determine image format from mime type or file extension
-	const mimeType = imageBinary.mimeType ?? 'image/png';
+	const mimeType = getImageMimeType(this, itemIndex, item);
 	const ext = mimeType.includes('jpeg') || mimeType.includes('jpg')
 		? 'jpg'
 		: mimeType.includes('gif')
@@ -739,7 +649,7 @@ export async function insertImage(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -774,14 +684,6 @@ export async function replaceImage(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
-	const imageBinaryPropertyName = this.getNodeParameter(
-		'imageBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -793,26 +695,8 @@ export async function replaceImage(
 		heightMm?: number;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const imageBinary = item.binary?.[imageBinaryPropertyName];
-	if (!imageBinary) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No image binary data found in property "${imageBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
-	const imageBuffer = await this.helpers.getBinaryDataBuffer(itemIndex, imageBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const imageBuffer = await resolveInputBuffer(this, itemIndex, item, 'imageInputSource', 'imageBinaryPropertyName', 'imageUrl');
 	const zip = await JSZip.loadAsync(buffer);
 
 	// Find existing image files in BinData/
@@ -860,7 +744,7 @@ export async function replaceImage(
 	}
 
 	// Determine new image format
-	const mimeType = imageBinary.mimeType ?? 'image/png';
+	const mimeType = getImageMimeType(this, itemIndex, item);
 	const newExt = mimeType.includes('jpeg') || mimeType.includes('jpg')
 		? 'jpg'
 		: mimeType.includes('gif')
@@ -952,7 +836,7 @@ export async function replaceImage(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -985,10 +869,6 @@ export async function addTable(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1002,14 +882,6 @@ export async function addTable(
 		borderFillIDRef?: number;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	// Parse table data: array of arrays (JSON)
 	let tableData: string[][];
@@ -1082,7 +954,7 @@ export async function addTable(
 		`<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">` +
 		`<hp:run charPrIDRef="0">${tblXml}</hp:run></hp:p>`;
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 	const position = options.position ?? 'append';
 
@@ -1103,7 +975,7 @@ export async function addTable(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -1136,10 +1008,6 @@ export async function setHeaderFooter(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1151,14 +1019,6 @@ export async function setHeaderFooter(
 		applyPageType?: string;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	const headerText = this.getNodeParameter('headerText', itemIndex, '') as string;
 	const footerText = this.getNodeParameter('footerText', itemIndex, '') as string;
@@ -1173,7 +1033,7 @@ export async function setHeaderFooter(
 
 	const applyPageType = options.applyPageType ?? 'BOTH';
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	const filenames = Object.keys(zip.files).sort();
@@ -1252,7 +1112,7 @@ export async function setHeaderFooter(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -1285,10 +1145,6 @@ export async function mergeCells(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1302,14 +1158,6 @@ export async function mergeCells(
 		tableIndex?: number;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	if (startRow > endRow || startCol > endCol) {
 		throw new NodeOperationError(
@@ -1329,7 +1177,7 @@ export async function mergeCells(
 
 	const tableIndex = options.tableIndex ?? 0;
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	const filenames = Object.keys(zip.files).sort();
@@ -1478,7 +1326,7 @@ export async function mergeCells(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -1513,10 +1361,6 @@ export async function insertEquation(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1531,14 +1375,6 @@ export async function insertEquation(
 		suffixText?: string;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	if (!equationScript) {
 		throw new NodeOperationError(this.getNode(), 'Equation script is required', { itemIndex });
@@ -1578,7 +1414,7 @@ export async function insertEquation(
 		paragraphContent +
 		`</hp:p>`;
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	const filenames = Object.keys(zip.files).sort();
@@ -1598,7 +1434,7 @@ export async function insertEquation(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -1628,10 +1464,6 @@ export async function setColumnLayout(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1644,14 +1476,6 @@ export async function setColumnLayout(
 		sameSize?: boolean;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	const colType = options.columnType ?? 'NEWSPAPER';
 	const gapHwpunit = Math.round((options.gapMm ?? 8) * MM_TO_HWPUNIT);
@@ -1661,7 +1485,7 @@ export async function setColumnLayout(
 		`<hp:colPr id="" type="${colType}" layout="LEFT" colCount="${columnCount}" ` +
 		`sameSz="${sameSz}" sameGap="${gapHwpunit}"/>`;
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	const filenames = Object.keys(zip.files).sort();
@@ -1693,7 +1517,7 @@ export async function setColumnLayout(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -1724,10 +1548,6 @@ export async function insertColumnBreak(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1737,14 +1557,6 @@ export async function insertColumnBreak(
 		afterParagraphIndex?: number;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	const afterIndex = options.afterParagraphIndex ?? -1;
 
@@ -1752,7 +1564,7 @@ export async function insertColumnBreak(
 		`<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="1" merged="0">` +
 		`<hp:run charPrIDRef="0"><hp:t></hp:t></hp:run></hp:p>`;
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	const filenames = Object.keys(zip.files).sort();
@@ -1793,7 +1605,7 @@ export async function insertColumnBreak(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -1825,10 +1637,6 @@ export async function formatExamHeader(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1844,14 +1652,6 @@ export async function formatExamHeader(
 		examTitle?: string;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	const subjectArea = options.subjectArea ?? '수학';
 	const session = options.session ?? 2;
@@ -1887,7 +1687,7 @@ export async function formatExamHeader(
 
 	const headerBlock = titlePara + subjectPara + sessionPara + typeLabelPara + separatorPara;
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	const filenames = Object.keys(zip.files).sort();
@@ -1902,7 +1702,7 @@ export async function formatExamHeader(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -1933,10 +1733,6 @@ export async function addTabStops(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -1948,14 +1744,6 @@ export async function addTabStops(
 		leader?: string;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
 
 	if (!tabPositions) {
 		throw new NodeOperationError(
@@ -1989,7 +1777,7 @@ export async function addTabStops(
 		.join('');
 	const tabPrXml = `<hp:tabPr id="" autoTabLeft="0" autoTabRight="0">${tabItems}</hp:tabPr>`;
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	// Modify header.xml to add tabPr definition
@@ -2022,7 +1810,7 @@ export async function addTabStops(
 	}
 
 	const outputBuffer = await finalizeZip(zip);
-	const originalFileName = binaryData.fileName ?? 'modified.hwpx';
+	const originalFileName = getOriginalFileName(this, itemIndex, item);
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		outputBuffer,
 		originalFileName,
@@ -2535,7 +2323,6 @@ export async function addMemo(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const outputProp = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -2548,17 +2335,9 @@ export async function addMemo(
 		fileName?: string;
 	};
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	const sectionFile =
 		zip.file('Contents/section0.xml') ?? zip.file('Contents/Section0.xml');
@@ -2603,7 +2382,7 @@ export async function addMemo(
 	zip.file(sectionFile.name, sectionXml);
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'memo.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'memo.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -2631,7 +2410,6 @@ export async function addShape(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const outputProp = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -2652,17 +2430,9 @@ export async function addShape(
 		fileName?: string;
 	};
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	const sectionFile =
 		zip.file('Contents/section0.xml') ?? zip.file('Contents/Section0.xml');
@@ -2768,7 +2538,7 @@ export async function addShape(
 	zip.file(sectionFile.name, sectionXml);
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'shape.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'shape.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -2791,20 +2561,11 @@ export async function trackChanges(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const action = this.getNodeParameter('trackChangeAction', itemIndex) as string;
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	if (action === 'read') {
 		// Read track changes from section XML
@@ -2875,7 +2636,7 @@ export async function trackChanges(
 	zip.file(settingsFile?.name ?? 'settings.xml', settingsXml);
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'tracked.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'tracked.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -2898,7 +2659,6 @@ export async function replaceByStyle(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const outputProp = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -2914,17 +2674,9 @@ export async function replaceByStyle(
 		fileName?: string;
 	};
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	// Read header.xml to get character property definitions
 	const headerFile =
@@ -3002,7 +2754,7 @@ export async function replaceByStyle(
 	}
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'styled.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'styled.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -3025,7 +2777,6 @@ export async function addNote(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const outputProp = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -3038,17 +2789,9 @@ export async function addNote(
 		fileName?: string;
 	};
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	const sectionFile =
 		zip.file('Contents/section0.xml') ?? zip.file('Contents/Section0.xml');
@@ -3087,7 +2830,7 @@ export async function addNote(
 	zip.file(sectionFile.name, sectionXml);
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'noted.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'noted.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -3110,7 +2853,6 @@ export async function addBookmark(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const outputProp = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -3122,17 +2864,9 @@ export async function addBookmark(
 		fileName?: string;
 	};
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	const sectionFile =
 		zip.file('Contents/section0.xml') ?? zip.file('Contents/Section0.xml');
@@ -3159,7 +2893,7 @@ export async function addBookmark(
 	zip.file(sectionFile.name, sectionXml);
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'bookmarked.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'bookmarked.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -3182,7 +2916,6 @@ export async function addWatermark(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const outputProp = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -3197,17 +2930,9 @@ export async function addWatermark(
 		fileName?: string;
 	};
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	const sectionFile =
 		zip.file('Contents/section0.xml') ?? zip.file('Contents/Section0.xml');
@@ -3277,7 +3002,7 @@ export async function addWatermark(
 	zip.file(sectionFile.name, sectionXml);
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'watermarked.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'watermarked.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -3300,20 +3025,11 @@ export async function setPassword(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const action = this.getNodeParameter('passwordAction', itemIndex) as string;
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	// HWPX protection is managed via content.hpf metadata and settings.xml
 	const hpfFile = zip.file('Contents/content.hpf') ?? zip.file('content.hpf');
@@ -3388,7 +3104,7 @@ export async function setPassword(
 	}
 
 	const newBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-	const fileName = options.fileName ?? binaryData.fileName ?? 'protected.hwpx';
+	const fileName = options.fileName ?? getOriginalFileName(this, itemIndex, item, 'protected.hwpx');
 	const newBinaryData = await this.helpers.prepareBinaryData(
 		newBuffer,
 		fileName,
@@ -3411,23 +3127,14 @@ export async function toMarkdown(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputProp = this.getNodeParameter('inputBinaryPropertyName', itemIndex) as string;
 	const options = this.getNodeParameter('options', itemIndex, {}) as {
 		includeTables?: boolean;
 		outputFormat?: string;
 	};
 
-	const binaryData = item.binary?.[inputProp];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputProp}"`,
-			{ itemIndex },
-		);
-	}
 
-	const fileBuffer = Buffer.from(binaryData.data, 'base64');
-	const zip = await JSZip.loadAsync(fileBuffer);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
+	const zip = await JSZip.loadAsync(buffer);
 
 	const includeTables = options.includeTables ?? true;
 

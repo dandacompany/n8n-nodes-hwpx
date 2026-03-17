@@ -10,6 +10,7 @@ import {
 	injectCharProperties,
 	buildStyledSectionXml,
 } from './formatParser';
+import { resolveInputBuffer } from './inputHelper';
 
 /**
  * Base64-encoded blank HWPX template generated from python-hwpx reference.
@@ -229,10 +230,6 @@ export async function fillTemplate(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -250,15 +247,6 @@ export async function fillTemplate(
 		groups?: Array<{ find: string; values: string }>;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
 	const pairs = replacementsParam.pairs ?? [];
 	const seqGroups = (sequentialParam.groups ?? []).map((g) => ({
 		find: g.find,
@@ -273,7 +261,7 @@ export async function fillTemplate(
 		);
 	}
 
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const zip = await JSZip.loadAsync(buffer);
 
 	let batchCount = 0;
@@ -357,26 +345,13 @@ export async function readDocument(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const options = this.getNodeParameter('options', itemIndex, {}) as {
 		includeMetadata?: boolean;
 		includeFileList?: boolean;
 		includeImages?: boolean;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const reader = new HwpxReader();
 	await reader.loadFromArrayBuffer(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer);
 
@@ -416,21 +391,7 @@ export async function validateDocument(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
-
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const errors: string[] = [];
 	const warnings: string[] = [];
 
@@ -484,10 +445,6 @@ export async function toHtml(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const options = this.getNodeParameter('options', itemIndex, {}) as {
 		renderImages?: boolean;
 		renderTables?: boolean;
@@ -496,16 +453,7 @@ export async function toHtml(
 		paragraphTag?: string;
 	};
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 	const reader = new HwpxReader();
 	await reader.loadFromArrayBuffer(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer);
 
@@ -741,10 +689,6 @@ export async function convertHwp(
 	itemIndex: number,
 	item: INodeExecutionData,
 ): Promise<INodeExecutionData> {
-	const inputBinaryPropertyName = this.getNodeParameter(
-		'inputBinaryPropertyName',
-		itemIndex,
-	) as string;
 	const outputBinaryPropertyName = this.getNodeParameter(
 		'outputBinaryPropertyName',
 		itemIndex,
@@ -752,16 +696,7 @@ export async function convertHwp(
 	) as string;
 	const fileName = this.getNodeParameter('fileName', itemIndex, 'converted.hwpx') as string;
 
-	const binaryData = item.binary?.[inputBinaryPropertyName];
-	if (!binaryData) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found in property "${inputBinaryPropertyName}"`,
-			{ itemIndex },
-		);
-	}
-
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, inputBinaryPropertyName);
+	const buffer = await resolveInputBuffer(this, itemIndex, item);
 
 	// Extract text, image placements, and image files from HWP
 	const { texts, images: imagePlacements } = extractHwpContent(buffer);
@@ -819,7 +754,7 @@ export async function convertHwp(
 		json: {
 			fileName,
 			size: outputBuffer.length,
-			convertedFrom: binaryData.fileName ?? 'unknown.hwp',
+			convertedFrom: item.binary?.[this.getNodeParameter('inputBinaryPropertyName', itemIndex, 'data') as string]?.fileName ?? 'unknown.hwp',
 			extractedParagraphs: texts.length,
 			extractedImages: imageFiles.length,
 			imagePlacements: imagePlacements.length,

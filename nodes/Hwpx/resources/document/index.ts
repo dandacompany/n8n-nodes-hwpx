@@ -1,4 +1,5 @@
 import type { INodeProperties } from 'n8n-workflow';
+import { makeFileInputParams } from '../../shared/inputHelper';
 
 export const documentOperations: INodeProperties[] = [
 	{
@@ -55,6 +56,7 @@ export const documentOperations: INodeProperties[] = [
 ];
 
 export const documentFields: INodeProperties[] = [
+	...makeFileInputParams('document', ['read', 'validate', 'toHtml', 'convertHwp', 'fillTemplate']),
 	// ----------------------------------
 	//         document:create
 	// ----------------------------------
@@ -146,20 +148,6 @@ export const documentFields: INodeProperties[] = [
 	//         document:read
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['document'],
-				operation: ['read'],
-			},
-		},
-		description: '읽을 HWPX 파일이 포함된 바이너리 속성 이름',
-	},
-	{
 		displayName: '옵션',
 		name: 'options',
 		type: 'collection',
@@ -199,38 +187,10 @@ export const documentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         document:validate
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['document'],
-				operation: ['validate'],
-			},
-		},
-		description: '검증할 HWPX 파일이 포함된 바이너리 속성 이름',
-	},
 
 	// ----------------------------------
 	//         document:toHtml
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['document'],
-				operation: ['toHtml'],
-			},
-		},
-		description: '변환할 HWPX 파일이 포함된 바이너리 속성 이름',
-	},
 	{
 		displayName: '옵션',
 		name: 'options',
@@ -286,20 +246,6 @@ export const documentFields: INodeProperties[] = [
 	//         document:convertHwp
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['document'],
-				operation: ['convertHwp'],
-			},
-		},
-		description: '변환할 HWP 파일이 포함된 바이너리 속성 이름',
-	},
-	{
 		displayName: '출력 파일 이름',
 		name: 'fileName',
 		type: 'string',
@@ -329,20 +275,6 @@ export const documentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         document:fillTemplate
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['document'],
-				operation: ['fillTemplate'],
-			},
-		},
-		description: '템플릿 HWPX 파일이 포함된 바이너리 속성 이름',
-	},
 	{
 		displayName: '일괄 치환',
 		name: 'replacements',

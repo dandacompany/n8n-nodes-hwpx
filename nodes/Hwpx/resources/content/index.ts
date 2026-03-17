@@ -1,4 +1,5 @@
 import type { INodeProperties } from 'n8n-workflow';
+import { makeFileInputParams, makeImageInputParams } from '../../shared/inputHelper';
 
 export const contentOperations: INodeProperties[] = [
 	{
@@ -168,23 +169,20 @@ export const contentOperations: INodeProperties[] = [
 ];
 
 export const contentFields: INodeProperties[] = [
+	// --- Consolidated input source params ---
+	...makeFileInputParams('content', [
+		'replaceText', 'replaceTextSequential', 'extractStructure', 'listTexts',
+		'pageSetup', 'insertImage', 'replaceImage', 'addTable', 'setHeaderFooter',
+		'mergeCells', 'insertEquation', 'setColumnLayout', 'insertColumnBreak',
+		'formatExamHeader', 'addTabStops', 'addMemo', 'addShape', 'trackChanges',
+		'replaceByStyle', 'addNote', 'addBookmark', 'addWatermark', 'setPassword',
+		'toMarkdown',
+	]),
+	...makeImageInputParams('content', ['insertImage', 'replaceImage']),
+
 	// ----------------------------------
 	//         content:replaceText
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['replaceText'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '치환 목록',
 		name: 'replacements',
@@ -276,20 +274,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:replaceTextSequential
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['replaceTextSequential'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '검색 텍스트',
 		name: 'findText',
 		type: 'string',
@@ -373,20 +357,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:extractStructure
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['extractStructure'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '옵션',
 		name: 'options',
 		type: 'collection',
@@ -420,20 +390,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:listTexts
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['listTexts'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '옵션',
 		name: 'options',
@@ -475,20 +431,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:pageSetup
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['pageSetup'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '용지 크기',
 		name: 'paperSize',
@@ -617,34 +559,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:insertImage
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['insertImage'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
-		displayName: '이미지 바이너리 속성',
-		name: 'imageBinaryPropertyName',
-		type: 'string',
-		default: 'image',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['insertImage'],
-			},
-		},
-		description: '이미지 파일(PNG, JPG, GIF, BMP)이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '출력 바이너리 속성',
 		name: 'outputBinaryPropertyName',
 		type: 'string',
@@ -708,34 +622,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:replaceImage
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['replaceImage'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
-		displayName: '이미지 바이너리 속성',
-		name: 'imageBinaryPropertyName',
-		type: 'string',
-		default: 'image',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['replaceImage'],
-			},
-		},
-		description: '교체할 새 이미지 파일(PNG, JPG, GIF, BMP)이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '대상 이미지',
 		name: 'targetImage',
 		type: 'string',
@@ -794,20 +680,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:addTable
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['addTable'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '표 데이터 (JSON)',
 		name: 'tableData',
@@ -896,20 +768,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:setHeaderFooter
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['setHeaderFooter'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '머리글 텍스트',
 		name: 'headerText',
 		type: 'string',
@@ -979,20 +837,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:mergeCells
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['mergeCells'],
-			},
-		},
-		description: '표가 포함된 HWPX 파일의 바이너리 속성 이름',
-	},
 	{
 		displayName: '시작 행',
 		name: 'startRow',
@@ -1090,20 +934,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:insertEquation
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['insertEquation'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '수식 스크립트',
 		name: 'equationScript',
 		type: 'string',
@@ -1192,20 +1022,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:setColumnLayout
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['setColumnLayout'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '단 수',
 		name: 'columnCount',
 		type: 'number',
@@ -1290,20 +1106,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:insertColumnBreak
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['insertColumnBreak'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '출력 바이너리 속성',
 		name: 'outputBinaryPropertyName',
 		type: 'string',
@@ -1343,20 +1145,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:formatExamHeader
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['formatExamHeader'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '학년도',
 		name: 'year',
@@ -1467,20 +1255,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:addTabStops
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['addTabStops'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '탭 위치 (Mm)',
 		name: 'tabPositions',
@@ -1661,20 +1435,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:addMemo
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['addMemo'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '메모 텍스트',
 		name: 'memoText',
 		type: 'string',
@@ -1729,20 +1489,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:addShape
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['addShape'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '도형 유형',
 		name: 'shapeType',
@@ -1866,20 +1612,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:trackChanges
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['trackChanges'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '동작',
 		name: 'trackChangeAction',
 		type: 'options',
@@ -1931,20 +1663,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:replaceByStyle
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['replaceByStyle'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '치환할 텍스트',
 		name: 'replaceWith',
@@ -2028,20 +1746,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:addNote
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['addNote'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '주석 유형',
 		name: 'noteType',
 		type: 'options',
@@ -2115,20 +1819,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:addBookmark
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['addBookmark'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '책갈피 이름',
 		name: 'bookmarkName',
 		type: 'string',
@@ -2182,20 +1872,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:addWatermark
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['addWatermark'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '워터마크 텍스트',
 		name: 'watermarkText',
@@ -2272,20 +1948,6 @@ export const contentFields: INodeProperties[] = [
 	//         content:setPassword
 	// ----------------------------------
 	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['setPassword'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
-	{
 		displayName: '동작',
 		name: 'passwordAction',
 		type: 'options',
@@ -2348,20 +2010,6 @@ export const contentFields: INodeProperties[] = [
 	// ----------------------------------
 	//         content:toMarkdown
 	// ----------------------------------
-	{
-		displayName: '입력 바이너리 속성',
-		name: 'inputBinaryPropertyName',
-		type: 'string',
-		default: 'data',
-		required: true,
-		displayOptions: {
-			show: {
-				resource: ['content'],
-				operation: ['toMarkdown'],
-			},
-		},
-		description: 'HWPX 파일이 포함된 바이너리 속성의 이름',
-	},
 	{
 		displayName: '옵션',
 		name: 'options',
